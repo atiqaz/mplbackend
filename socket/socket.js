@@ -101,17 +101,20 @@ export default () => {
             console.log(data)
             const room = await AuctionDetails.findOne({ _id: data.auctionId })
             socket.join(room.roomId)
-            const user = await OnlineUser.findOne({ userId: data.userId }).populate("userId")
-            const userDetails = {
-                userId: user.userId,
-                username: user.username,
-                avatar: user.avatar,
-                socketId: user.socketId,
-                role: user.role,
-                roomId: data.roomId
+            if(data.userId){
+                const user = await OnlineUser.findOne({ userId: data.userId }).populate("userId")
+                const userDetails = {
+                    userId: user.userId,
+                    username: user.username,
+                    avatar: user.avatar,
+                    socketId: user.socketId,
+                    role: user.role,
+                    roomId: data.roomId
+                }
+                console.log(room.roomId)
+                socket.broadcast.to(room.roomId).emit("user:joined", userDetails);
             }
-            console.log(room.roomId)
-            socket.broadcast.to(room.roomId).emit("user:joined", userDetails);
+            
 
         })
 
