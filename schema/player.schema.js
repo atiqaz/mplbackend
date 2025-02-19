@@ -26,7 +26,7 @@ const playerSchema = new mongoose.Schema({
         trim: true,
         match: /^[0-9]{10}$/, // Ensures a 10-digit phone number
     },
-    password:{
+    password: {
         type: String,
         required: true,
         minlength: 6,
@@ -41,48 +41,38 @@ const playerSchema = new mongoose.Schema({
         required: true,
         enum: ['Batsman', 'Bowler', 'Allrounder'], // Restricts values
     },
-   
     battingDetails: {
-        handedness: {
-            type: String,  
-        },
-        battingOrder:{
-            type: String,
-          
-        },
+        handedness: String,
+        battingOrder: String,
     },
     isWicketkeeper: {
-        type: String,
-
+        type: Boolean, // Changed from String to Boolean
+        default: false,
     },
     bowlingDetails: {
-        bowlingStyle: {
-            type: String,
-            
-        },
-       
+        bowlingStyle: String,
     },
     basePrice: {
         type: Number,
-        required: true,
         min: 1000,
+        default: 1000,
     },
-    auctionId:{
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'auction'
-    }
+    auctions: [{ 
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'auction'  // Changed to array to store multiple auction IDs
+    }]
 }, { timestamps: true });
 
 playerSchema.methods.matchPassword = async function (enteredPassword) {
-console.log({enteredPassword})
+    console.log({ enteredPassword });
     return (enteredPassword === this.password); // Compare with hashed password
 };
 
 playerSchema.methods.getSignedJwtToken = function () {
-    console.log(this)
+    console.log(this);
     return JWT.sign({ _id: this._id, role: 'player' }, process.env.JWT_SECRET);
 };
-// const User = mongoose.model('user', UserSchema);
+
 const Player = mongoose.model('Player', playerSchema);
 
 export default Player;

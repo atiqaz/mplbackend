@@ -5,6 +5,7 @@ import ErrorResponse from '../helper/res.error.js';
 import success from '../helper/res.success.js';
 import BiddingGround from "../schema/bidding.schema.js"
 import mongoose from 'mongoose';
+import { getPlayersWithAuctionId } from '../helper/functionalities/PlayersFun.js';
 
 
 
@@ -31,38 +32,84 @@ const createPlayer = async (req, res) => {
 
 }
 
-const playerLogin = async(req,res)=>{
+const playerLogin = async (req, res) => {
   console.log(req.body)
-try {
-  
-  const player = await Player.findOne({ email: req.body.email});
-  console.log(player)
-  if (!player) {
-    return ErrorResponse.Unauthorized(res, 'Invalid Credentials');
-  }
+  try {
 
-  const isValidPass= await player.matchPassword(req.body.password)
-  console.log(isValidPass)
-  if (!isValidPass) {
-    return ErrorResponse.Unauthorized(res, 'Invalid Credentials');
+    const player = await Player.findOne({ email: req.body.email });
+    console.log(player)
+    if (!player) {
+      return ErrorResponse.Unauthorized(res, 'Invalid Credentials');
+    }
+
+    const isValidPass = await player.matchPassword(req.body.password)
+    console.log(isValidPass)
+    if (!isValidPass) {
+      return ErrorResponse.Unauthorized(res, 'Invalid Credentials');
+    }
+    const token = await player.getSignedJwtToken();
+    success.successResponse(res, { token, role: 'player' }, 'Logged in successfully');
+  } catch (error) {
+
   }
-  const token = await player.getSignedJwtToken();
-  success.successResponse(res, { token, role:'player'}, 'Logged in successfully');
-} catch (error) {
-  
 }
-}
+
+const updatePlayerAuctions = async (req, res) => {
+  try {
+    const { auctionIds } = req.body; // Array of auction IDs
+
+    const player = await Player.findById(req.params.id);
+    if (!player) {
+      return res.status(404).json({ success: false, message: "Player not found" });
+    }
+
+    // Update auctions array
+    player.auctions = auctionIds;
+    await player.save();
+
+    res.status(200).json({ success: true, message: "Player auctions updated successfully", player });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
 
 
 const getAllPlayer = async (req, res) => {
-
   try {
-    const players = await Player.find();
+    const { name, role, status, team, page = 1, limit = 10 } = req.query;
+    
+    let filter = {};
+
+    if (name) {
+      filter.name = { $regex: name, $options: 'i' }; // Case-insensitive search
+    }
+
+    if (role) {
+      filter.role = role;
+    }
+
+    if (status) {
+      filter.status = status;
+    }
+
+    if (team) {
+      filter.team = team;
+    }
+
+    // Pagination setup
+    const skip = (page - 1) * limit;
+    
+    const players = await Player.find(filter)
+      .skip(skip)
+      .limit(parseInt(limit));
+
     success.successResponse(res, players, 'Players retrieved successfully');
+
   } catch (error) {
     return ErrorResponse.InternalServerError(res, error.message);
   }
-}
+};
+
 
 
 const getLatestPlayerWithHighestBasePrice = async () => {
@@ -107,51 +154,96 @@ const getLatestPlayerWithHighestBasePrice = async () => {
 };
 
 
-const getsinglePlayer =async (req,res)=>{
- const playerId = req.params.id;
-try {
-  const  player = await Player.findOne({_id:playerId})
-  const auctionId = player.auctionId
-  const bidsHistory= await BiddingGround.findOne({
-    playerId,
-    auctionId
-  })
-const resData = {
-  player,
-  bid:bidsHistory
-}
- success.successResponse(res, resData, 'Player retrieved successfully');
-} catch (error) {
-  
-  return ErrorResponse.InternalServerError(res, error.message);
-}
-}
+const getsinglePlayer = async (req, res) => {
+  const playerId = req.params.id;
+  const auctionId = req.body.auctionId
+  try {
+    const player = await Player.findOne({ _id: playerId }).populate("auctions")
+    // const auctionId = player.auctionId
+    const bidsHistory = await BiddingGround.findOne({
+      playerId,
+      auctionId
+    })
+    const resData = {
+      player,
+      bid: bidsHistory
+    }
+    success.successResponse(res, resData, 'Player retrieved successfully');
+  } catch (error) {
 
-const uploadImage =async(req,res) =>{
-try {
-  if(!mongoose.Types.ObjectId.isValid(req.params.id)){
-    return ErrorResponse.BadRequest(res, 'Invalid ID');
-
+    return ErrorResponse.InternalServerError(res, error.message);
   }
-  const filter ={
-    _id:req.params.id
+}
+const getsinglePlayerWithAuctionDetails = async (req, res) => {
+  const playerId = req.params.id;
+  const auctionId = req.body.auctionId
+  try {
+    const player = await Player.findOne({ _id: playerId }).populate("auctions")
+    // const auctionId = player.auctionId
+    const bidsHistory = await BiddingGround.findOne({
+      playerId,
+      auctionId
+    })
+    const resData = {
+      player,
+      bid: bidsHistory
+    }
+    success.successResponse(res, resData, 'Player retrieved successfully');
+  } catch (error) {
+
+    return ErrorResponse.InternalServerError(res, error.message);
   }
-  const update = {
-   
-      image:`/${req.file.destination}/${req.file.filename}`
-    
-  }
-  const uploadImage =await Player.findOneAndUpdate(filter, update,{
-    new: true
-  })
-  // console.log(uploadImage)
-  success.successResponse(res, uploadImage, 'Image uploaded successfully');
-} catch (error) {
-  
-  return ErrorResponse.InternalServerError(res, error.message);
 }
 
-  
+const getPlayersofIndividualAuction = async (req, res) => {
+  const { AuctionId } = req.params;
+  try {
+    const players = await getPlayersWithAuctionId(AuctionId)
+    if (!players.length) {
+      return ErrorResponse.NOT_FOUND(res, 'No players found for this auction');
+    }
+    success.successResponse(res, players, 'Players retrieved successfully');
+
+  } catch (error) {
+    return ErrorResponse.InternalServerError(res, error.message);
+  }
+
+}
+const uploadImage = async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return ErrorResponse.BadRequest(res, 'Invalid ID');
+
+    }
+    const filter = {
+      _id: req.params.id
+    }
+    const update = {
+
+      image: `/${req.file.destination}/${req.file.filename}`
+
+    }
+    const uploadImage = await Player.findOneAndUpdate(filter, update, {
+      new: true
+    })
+    // console.log(uploadImage)
+    success.successResponse(res, uploadImage, 'Image uploaded successfully');
+  } catch (error) {
+
+    return ErrorResponse.InternalServerError(res, error.message);
+  }
+
+
 }
 
-export { createPlayer, getAllPlayer, getLatestPlayerWithHighestBasePrice ,getsinglePlayer ,uploadImage  ,playerLogin}
+export {
+  createPlayer,
+  getAllPlayer,
+  getLatestPlayerWithHighestBasePrice,
+  getsinglePlayer,
+  uploadImage,
+  playerLogin,
+  updatePlayerAuctions,
+  getsinglePlayerWithAuctionDetails,
+  getPlayersofIndividualAuction
+}

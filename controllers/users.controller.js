@@ -5,6 +5,8 @@ import error from '../helper/res.error.js'; // For error responses
 import biddingGroundSchema from "../schema/bidding.schema.js"
 import { sendMail } from '../helper/sendMail.js';
 import mongoose from 'mongoose';
+import { finduser } from '../helper/functionalities/Teamfun.js';
+import AuctionModel from '../schema/auctions.schema.js';
 
 
 // Create a new user
@@ -12,7 +14,7 @@ const createUser = async (req, res) => {
     try {
         const { name, phone, email, image, password, role, auctionId } = req.body;
 
-        if (!name || !phone || !email || !password || !role || !auctionId) {
+        if (!name || !phone || !email || !password || !role) {
             return error.BadRequest(res, 'All fields are required.');
         }
         // Check if user with the same email already exists
@@ -40,6 +42,65 @@ const createUser = async (req, res) => {
         return error.InternalServerError(res, err.message);
     }
 };
+
+
+const participateinAuction = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        const { auctionId } = req.body;
+
+        // Ensure auctionId is a valid ObjectId
+        if (!mongoose.Types.ObjectId.isValid(auctionId)) {
+            return error.BadRequest(res, 'Invalid auction ID format');
+        }
+
+        // Check if user exists
+        const isUser = await finduser(userId);
+        if (!isUser) {
+            return error.BadRequest(res, 'User does not exist');
+        }
+
+        // Check if auction exists
+        const isAuction = await AuctionModel.findById(auctionId);
+        if (!isAuction) {
+            return error.BadRequest(res, 'Auction does not exist');
+        }
+
+        // Check if the user is already participating in the auction
+        const isAlreadyParticipated = isUser.auctions.some(
+            (auction) => auction.auctionId.toString() === auctionId
+        );
+
+        if (isAlreadyParticipated) {
+            return error.BadRequest(res, 'User has already participated in this auction.');
+        }
+
+        // Add the auction participation
+        const updatedUser = await User.findByIdAndUpdate(
+            userId,
+            {
+                $push: {
+                    auctions: {
+                        auctionId: new mongoose.Types.ObjectId(auctionId),
+                    }
+                }
+            },
+            { new: true }
+        );
+
+        if (!updatedUser) {
+            return error.BadRequest(res, 'User update failed');
+        }
+
+        console.log(updatedUser);
+        return success.successResponse(res, updatedUser, 'User participated successfully.');
+
+    } catch (err) {
+        console.error(err);
+        return error.InternalServerError(res, err.message);
+    }
+};
+
 
 const uploadImage = async (req, res) => {
     try {
@@ -203,11 +264,16 @@ const getProfile = async (req, res) => {
     console.log(req.user)
     try {
         if (role == 'player') {
-            const player = await Player.findOne({ _id }).select('-password')
+            const player = await Player.findOne({ _id }).populate('auctions').select('-password')
 
             return success.successResponse(res, player, 'Users retrieved successfully');
         }
-        const users = await User.findOne({ _id }).select('-password');
+        const users = await User.findOne({ _id }).populate([{
+
+            path: 'auctions.auctionId', // Populates auctionId inside auctions array
+            model: 'auction'
+
+        }])
         return success.successResponse(res, users, 'Users retrieved successfully');
     } catch (error) {
         return error.InternalServerError(res, error.message);
@@ -238,46 +304,137 @@ const pruchasedPlayer = async (req, res) => {
     }
 };
 
-
-
-
-const assignPurse = async (req, res) => {
+const isValidUser = async (req, res) => {
+    console.log(req.user)
+    const userId = req.body?.userId || req.user
     try {
-        const { id } = req.params; // auctionId from params
-        const { purseMoney } = req.body; // Purse amount from body
+        const user = await User.findOne({ _id: userId });
 
-        // Ensure auctionId is properly formatted
-        const auctionId = mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id;
+        if (!user) {
+            return error.BadRequest(
+                res,
+                "Invalid user",
+                "User not found or not authorized to access this endpoint."
+            )
+        }
+        if (user.status !== "accepted") {
+            return error.Unauthorized(
+                res,
+                "User Account Not Accepted",
+                "User not found or not authorized to access this endpoint."
+            )
+        } else {
+            return success.successResponse(res, user, 'User retrieved successfully');
+        }
+    } catch (err) {
 
-        // Define filter for finding documents
-        const filter = {
-            auctionId: auctionId,
-            role: "organisation",
-            status: "accepted",
-        };
+        return error.InternalServerError(res, err.message);
+    }
 
-        // Define update operation
-        const update = {
-            totalPurse: purseMoney,
-            remainingPurse: purseMoney
+}
 
-        };
 
-        // Update all matching documents
-        const result = await User.updateMany(filter, update);
+const assignPurseSingle = async (req, res) => {
+    try {
+        const { id } = req.params; // User ID from params
+        const { purseMoney, auctionId } = req.body; // Purse amount from body
 
-        if (result.matchedCount === 0) {
-            return error.NOT_FOUND(res, "No matching documents found")
+        // Check if the required fields are provided
+        if (!auctionId) {
+            return error.BadRequest(res, 'Auction ID is required.');
+        }
+        if (!purseMoney) {
+            return error.BadRequest(res, 'Purse amount is required.');
         }
 
-        console.log(result);
-        success.successResponse(res, result, 'Assigned Succesfully')
+        // Find the user
+        const user = await User.findById(id);
+        if (!user) {
+            return error.NOT_FOUND(res, 'User not found');
+        }
+
+        // Check if the auction exists
+        const isAuctionAvail = await AuctionModel.findById(auctionId);
+        if (!isAuctionAvail) {
+            return error.NOT_FOUND(res, 'Auction not found');
+        }
+        if (isAuctionAvail.status === 'Completed') {
+            return error.NOT_FOUND(res, 'Auction has been completed');
+        }
+
+        // Check if the user is already participating in the auction
+        const isParticipated = user.auctions.some(a => 
+            a.auctionId && a.auctionId.toString() === auctionId
+        );
+
+        if (!isParticipated) {
+            return error.NOT_FOUND(res, 'User has not participated in the auction.');
+        }
+
+        // Update the auction purse for the given auctionId
+        const updatedUser = await User.findOneAndUpdate(
+            { _id: id, "auctions.auctionId": auctionId },
+            {
+                $set: {
+                    "auctions.$.totalPurse": purseMoney,
+                    "auctions.$.remainingPurse": purseMoney
+                }
+            },
+            { new: true }
+        ).select('-password'); // Exclude password
+
+        return success.successResponse(res, updatedUser, 'Purse assigned successfully.');
+
     } catch (err) {
         console.error(err);
-        return error.InternalServerError(res, err.message)
+        return error.InternalServerError(res, err.message);
     }
 };
 
+
+const assignPurseAll = async (req, res) => {
+    try {
+        const { auctionId } = req.params;
+        const { purseMoney } = req.body;
+
+        if (!auctionId) {
+            return error.BadRequest(res, 'Auction ID is required.');
+        }
+
+        if (!purseMoney || isNaN(purseMoney) || purseMoney <= 0) {
+            return error.BadRequest(res, 'Valid purse amount is required.');
+        }
+
+        // Find all users who participated in the auction
+        const users = await User.find({ "auctions.auctionId": auctionId });
+
+        if (!users || users.length === 0) {
+            return error.NOT_FOUND(res, 'No users found for this auction.');
+        }
+
+        // Assign purse to each participating user
+        const bulkOperations = users.map(user => ({
+            updateOne: {
+                filter: { _id: user._id, "auctions.auctionId": auctionId },
+                update: {
+                    $set: {
+                        "auctions.$.totalPurse": purseMoney,
+                        "auctions.$.remainingPurse": purseMoney
+                    }
+                }
+            }
+        }));
+
+        // Perform bulk update
+        await User.bulkWrite(bulkOperations);
+
+        return success.successResponse(res, users, 'Purse assigned to all participants.');
+
+    } catch (err) {
+        console.error(err);
+        return error.InternalServerError(res, err.message);
+    }
+};
 
 
 
@@ -291,6 +448,8 @@ export {
     getProfile,
     pruchasedPlayer,
     uploadImage,
-    assignPurse
-
+    assignPurseSingle,
+    participateinAuction,
+    isValidUser,
+    assignPurseAll
 };

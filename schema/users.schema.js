@@ -51,7 +51,23 @@ const UserSchema = new mongoose.Schema({
     auctionId:{
         type: mongoose.Schema.Types.ObjectId,
         ref: 'auction'
-    }
+    },
+    auctions: [
+        {
+            auctionId: {
+                type: mongoose.Schema.Types.ObjectId,
+                ref: 'auction',
+            },
+            totalPurse: {
+                type: Number,
+                // required: true
+            },
+            remainingPurse: {
+                type: Number,
+                // required: true
+            }
+        }
+    ]
 
 }, { timestamps: true });
 
