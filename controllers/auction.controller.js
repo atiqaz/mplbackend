@@ -62,17 +62,35 @@ const getupcomingAuctions = async (req,res) => {
     }
 
 }
-const getAllAuctions = async (req,res) => {
-    
+const getAllAuctions = async (req, res) => {
     try {
-        const auctions = await AuctionModel.find()
-        console.log(auctions)
-        success.successResponse(res, auctions, 'All Auctions reteived successfully')
-    } catch (err) {
-        error.InternalServerError(res, err.message)
-    }
+        const { filter } = req.query; // Query parameter se filter get kar rahe hain
+        const currentDate = new Date(); // Current date for comparison
 
-}
+        let filterCondition = {};
+
+        if (filter === "upcoming") {
+            filterCondition.auctionDate = { $gt: currentDate }; // Future auctions
+        } else if (filter === "live") {
+            filterCondition.auctionDate = { $lte: currentDate }; // Auctions started but not completed
+            filterCondition.status = "InProgress";
+        } else if (filter === "finished") {
+            filterCondition.auctionDate = { $lt: currentDate }; // Past auctions
+            filterCondition.status = "Completed";
+        }
+
+        const auctions = await AuctionModel.find(filterCondition);
+        console.log(auctions);
+        
+       return  success.successResponse(res,auctions,'Auctions retrieved')
+    } catch (err) {
+        res.status(500).json({
+            success: false,
+            message: "Internal Server Error",
+            error: err.message
+        });
+    }
+};
 
 const getSingleAuction =async(req,res)=>{
     try {

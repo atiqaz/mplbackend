@@ -12,7 +12,7 @@ import AuctionModel from '../schema/auctions.schema.js';
 // Create a new user
 const createUser = async (req, res) => {
     try {
-        const { name, phone, email, image, password, role, auctionId } = req.body;
+        const { name, phone, email, image, password, role, } = req.body;
 
         if (!name || !phone || !email || !password || !role) {
             return error.BadRequest(res, 'All fields are required.');
@@ -30,7 +30,7 @@ const createUser = async (req, res) => {
             image,
             password, // In a real application, hash the password before saving
             role,
-            auctionId
+    
         });
 
         await newUser.save();
