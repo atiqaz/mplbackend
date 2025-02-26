@@ -6,6 +6,7 @@ import success from '../helper/res.success.js';
 import BiddingGround from "../schema/bidding.schema.js"
 import mongoose from 'mongoose';
 import { getPlayersWithAuctionId } from '../helper/functionalities/PlayersFun.js';
+import AuctionModel from '../schema/auctions.schema.js';
 
 
 
@@ -59,13 +60,42 @@ const updatePlayerAuctions = async (req, res) => {
     const { auctionIds } = req.body; // Array of auction IDs
 
     const player = await Player.findById(req.params.id);
+
+    if (!mongoose.Types.ObjectId.isValid(auctionIds)) {
+      return ErrorResponse.BadRequest(res, 'Invalid auction ID format');
+    }
     if (!player) {
-      return res.status(404).json({ success: false, message: "Player not found" });
+
+      return ErrorResponse.NOT_FOUND(res, 'Player not found');
     }
 
-    // Update auctions array
-    player.auctions = auctionIds;
-    await player.save();
+    const isAuction = await AuctionModel.findById(auctionIds);
+    if (!isAuction) {
+      return ErrorResponse.BadRequest(res, 'Auction does not exist');
+    }
+
+    const isAlreadyParticipated = player.auctions.some(
+      (auction) => auction.auctionId.toString() === auctionIds
+    );
+    if (isAlreadyParticipated) {
+      return ErrorResponse.CONFLICTS(res, 'Player has already participated in this auction');
+    }
+    const updatedUser = await Player.findByIdAndUpdate(
+      req.params.id,
+      {
+        $push: {
+          auctions: {
+            auctionId: new mongoose.Types.ObjectId(auctionIds),
+          }
+        }
+      },
+      { new: true }
+    );
+
+    if (!updatedUser) {
+      return error.BadRequest(res, 'User update failed');
+    }
+    return success.successResponse(res, updatedUser, 'Player participated successfully.');
 
     res.status(200).json({ success: true, message: "Player auctions updated successfully", player });
   } catch (error) {
@@ -73,11 +103,10 @@ const updatePlayerAuctions = async (req, res) => {
   }
 };
 
-
 const getAllPlayer = async (req, res) => {
   try {
-    const { name, role, status, team, page = 1, limit = 10 } = req.query;
-    
+    const { auctionId, name, role, status, team, page = 1, limit = 10 } = req.query;
+
     let filter = {};
 
     if (name) {
@@ -96,15 +125,18 @@ const getAllPlayer = async (req, res) => {
       filter.team = team;
     }
 
+    if (auctionId) {
+      filter['auctions.auctionId'] = new mongoose.Types.ObjectId(auctionId);
+    }
+
     // Pagination setup
     const skip = (page - 1) * limit;
-    
+
     const players = await Player.find(filter)
       .skip(skip)
       .limit(parseInt(limit));
 
-    success.successResponse(res, players, 'Players retrieved successfully');
-
+    return success.successResponse(res, players, 'Players retrieved successfully');
   } catch (error) {
     return ErrorResponse.InternalServerError(res, error.message);
   }

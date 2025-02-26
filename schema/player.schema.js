@@ -57,9 +57,11 @@ const playerSchema = new mongoose.Schema({
         min: 1000,
         default: 1000,
     },
-    auctions: [{ 
-        type: mongoose.Schema.Types.ObjectId, 
-        ref: 'auction'  // Changed to array to store multiple auction IDs
+    auctions: [{
+        auctionId: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'auction',
+        }
     }]
 }, { timestamps: true });
 

@@ -2,7 +2,7 @@
 
 import express from 'express';
 const router = express.Router();
-import {createAuction ,getAllAuctions,getSingleAuction,getupcomingAuctions} from '../controllers/auction.controller.js';
+import {createAuction ,getAllAuctions,getSingleAuction,getSingleAuctionWithFUlldetails,getupcomingAuctions} from '../controllers/auction.controller.js';
 
 // Get all players
 router.get('/', getupcomingAuctions);
@@ -12,6 +12,7 @@ router.get('/allauction', getAllAuctions);
 router.post('/', createAuction);
 
 router.get('/singleAuction/:id',getSingleAuction)
+router.get('/singleAuction/details/:id',getSingleAuctionWithFUlldetails)
 
 
 export  default router;

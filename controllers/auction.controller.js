@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import error from "../helper/res.error.js"
 import success from "../helper/res.success.js"
 import AuctionModel from "../schema/auctions.schema.js"
+import UserModel from '../schema/users.schema.js'
+import PlayerModel from '../schema/player.schema.js'
 
 
 
@@ -14,9 +16,9 @@ const createAuction = async (req, res) => {
         var newId = new mongoose.mongo.ObjectId();
         const romId = `room:${newId}`
         // Create a new auction instance
-        const body ={
+        const body = {
             ...req.body,
-            roomId:romId
+            roomId: romId
         }
         const auction = new AuctionModel(body);
 
@@ -51,10 +53,10 @@ const createAuction = async (req, res) => {
     }
 };
 
-const getupcomingAuctions = async (req,res) => {
-    
+const getupcomingAuctions = async (req, res) => {
+
     try {
-        const auctions = await AuctionModel.find({ status:{ $ne: 'Completed' } })
+        const auctions = await AuctionModel.find({ status: { $ne: 'Completed' } })
         console.log(auctions)
         success.successResponse(res, auctions, 'All active Auction ')
     } catch (err) {
@@ -63,6 +65,7 @@ const getupcomingAuctions = async (req,res) => {
 
 }
 const getAllAuctions = async (req, res) => {
+
     try {
         const { filter } = req.query; // Query parameter se filter get kar rahe hain
         const currentDate = new Date(); // Current date for comparison
@@ -81,8 +84,8 @@ const getAllAuctions = async (req, res) => {
 
         const auctions = await AuctionModel.find(filterCondition);
         console.log(auctions);
-        
-       return  success.successResponse(res,auctions,'Auctions retrieved')
+
+        return success.successResponse(res, auctions, 'Auctions retrieved')
     } catch (err) {
         res.status(500).json({
             success: false,
@@ -92,28 +95,74 @@ const getAllAuctions = async (req, res) => {
     }
 };
 
-const getSingleAuction =async(req,res)=>{
+const getSingleAuction = async (req, res) => {
     try {
         const auction = await AuctionModel.findById(req.params.id)
-        if(!auction) return error.NOT_FOUND(res, 'Auction not found')
-            console.log(auction)
+        if (!auction) return error.NOT_FOUND(res, 'Auction not found')
+        console.log(auction)
         success.successResponse(res, auction, 'Single Auction ')
     } catch (err) {
         error.InternalServerError(res, err.message)
     }
 
 }
-const updateAuctionDoc = async(auctionId)=>{
-    console.log({auctionId})
-    
-    return await AuctionModel.findOneAndUpdate({ _id:auctionId }, { status: "InProgress" }, { new: true });
+const updateAuctionDoc = async (auctionId) => {
+    console.log({ auctionId })
+
+    return await AuctionModel.findOneAndUpdate({ _id: auctionId }, { status: "InProgress" }, { new: true });
 }
 
-const getStartedAuction  = async (auctionId)=>{
-return await AuctionModel.findOne({_id:auctionId})
+const getStartedAuction = async (auctionId) => {
+    return await AuctionModel.findOne({ _id: auctionId })
 }
-const endAuction =async(auctionId)=>{
-return await AuctionModel.findOneAndUpdate({ _id:auctionId }, { status: "Completed" }, { new: true })
+const endAuction = async (auctionId) => {
+    return await AuctionModel.findOneAndUpdate({ _id: auctionId }, { status: "Completed" }, { new: true })
 }
 
-export { createAuction, getupcomingAuctions ,getSingleAuction ,updateAuctionDoc ,getStartedAuction ,endAuction ,getAllAuctions}
+const getSingleAuctionWithFUlldetails = async (req, res) => {
+    const id = req.params
+    console.log(id)
+
+    try {
+        const isValidId = new mongoose.mongo.ObjectId(id)
+        if (!isValidId) {
+            return error.BadRequest(res, 'Invalid ID')
+        }
+
+        const auction = await AuctionModel.findById(isValidId)
+        const users = await UserModel.aggregate([
+            {
+                $match: { "auctions.auctionId": isValidId }
+            },
+            {
+                $unset: "auctions" // Removes the 'auctions' field from the output
+            }
+        ])
+        const players = await PlayerModel.aggregate([
+            {
+                $match: { "auctions.auctionId": isValidId }
+            },
+            {
+                $unset: "auctions" // Removes the 'auctions' field from the output
+            }
+        ])
+        console.log(users)
+        const data = {
+            auction: auction,
+            teams: users, // Assuming user schema has a field 'user'
+            players: players // Assuming player schema has a field 'player'
+        }
+        success.successResponse(res, data, 'Auction details with user info ')
+    } catch (err) {
+        error.InternalServerError(res, err.message)
+
+    }
+
+
+}
+
+export {
+    createAuction, getupcomingAuctions,
+    getSingleAuction, updateAuctionDoc, getStartedAuction,
+    endAuction, getAllAuctions, getSingleAuctionWithFUlldetails
+}

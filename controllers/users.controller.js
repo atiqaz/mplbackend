@@ -128,13 +128,16 @@ const uploadImage = async (req, res) => {
 }
 // Get all users
 const getAllUsers = async (req, res) => {
-    const { auctionId } = req.query
-    console.log({ auctionId })
     try {
-        const users = await User.find({
-            auctionId: auctionId,
-            role: { $ne: 'admin' } // Exclude admin users from the result
-        });
+        const { status } = req.query; // Get status from query params
+        let filter = { role: { $ne: 'admin' } }; // Default filter to exclude admins
+
+        // Only apply status filter if it exists and is not empty
+        if (status) {
+            filter.status = status; // Add status filter dynamically
+        }
+
+        const users = await User.find(filter); // Apply filters
         return success.successResponse(res, users, 'Users retrieved successfully.');
     } catch (err) {
         return error.InternalServerError(res, err.message);
@@ -264,7 +267,11 @@ const getProfile = async (req, res) => {
     console.log(req.user)
     try {
         if (role == 'player') {
-            const player = await Player.findOne({ _id }).populate('auctions').select('-password')
+            const player = await Player.findOne({ _id }).populate([{
+                path: 'auctions.auctionId', // Populates auctionId inside auctions array
+                model: 'auction'
+    
+            }]).select('-password')
 
             return success.successResponse(res, player, 'Users retrieved successfully');
         }
