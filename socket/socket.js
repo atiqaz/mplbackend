@@ -7,6 +7,8 @@ import OnlineUser from "../schema/socket.schema.js"
 import AuctionDetails from "../schema/auctions.schema.js"
 import { endAuction, getStartedAuction, updateAuctionDoc } from "../controllers/auction.controller.js"
 import UserSchema from "../schema/users.schema.js"
+import { startAandStop } from "../helper/functionalities/auctionFun.js"
+import { findUserWithProperDetails } from "../helper/functionalities/Teamfun.js"
 
 
 function logTimeExpired() {
@@ -70,7 +72,7 @@ export default () => {
             // Fetch the current player details
         });
         socket.on("start:auctionTable", async (data) => {
-    
+
             // ----------------update auction doc-------------------
             // start:auctionTable
             const started = await updateAuctionDoc(data.auctionId)
@@ -101,7 +103,7 @@ export default () => {
             console.log(data)
             const room = await AuctionDetails.findOne({ _id: data.auctionId })
             socket.join(room.roomId)
-            if(data.userId){
+            if (data.userId) {
                 const user = await OnlineUser.findOne({ userId: data.userId }).populate("userId")
                 const userDetails = {
                     userId: user.userId,
@@ -114,7 +116,7 @@ export default () => {
                 console.log(room.roomId)
                 socket.broadcast.to(room.roomId).emit("user:joined", userDetails);
             }
-            
+
 
         })
 
@@ -164,19 +166,40 @@ export default () => {
                 message: "Its Your last chance to Bid for this player"
             });
         })
-        socket.on("EndAuction",async (data) => {
+        socket.on("EndAuction", async (data) => {
             console.log('End Auction', data)
-            const complete =await endAuction(data.auctionId)
+            const complete = await endAuction(data.auctionId)
             console.log(complete)
-            global.io.to(data.roomId).emit('auctionEnd',{
+            global.io.to(data.roomId).emit('auctionEnd', {
                 complete,
                 message: "Auction has ended"
             })
         })
-        socket.on('getPurse',async(data)=>{
-            console.log('getPurse',{data})
-            const user = await UserSchema.findOne({_id:data.userId})
+        socket.on('getPurse', async (data) => {
+            console.log('getPurse', { data })
+            const user = await UserSchema.findOne({ _id: data.userId })
             io.to(data.socketId).emit('getPurse', user.remainingPurse);
+
+        })
+
+        // --------------------new format--------------------------
+        socket.on('startAuction', async (data) => {
+            const isStarted = await startAandStop(data)
+            console.log(isStarted)
+            io.emit('auctionStarted', {
+                message: 'Auction has started!',
+                ...isStarted,
+            });
+        })
+
+        socket.on('JoinAuctionRoom', async (data) => {
+            console.log('JoinAuctionRoom', data)
+            socket.join(data.roomId);
+            if (data?.userId) {
+                const value = await findUserWithProperDetails(data?.userId, data?.auctionId)
+                console.log(value)
+                socket.emit("JoinAuctionRoom", value)
+            }
 
         })
     })

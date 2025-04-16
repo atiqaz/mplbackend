@@ -96,6 +96,7 @@ const getAllAuctions = async (req, res) => {
 };
 
 const getSingleAuction = async (req, res) => {
+    console.log('called')
     try {
         const auction = await AuctionModel.findById(req.params.id)
         if (!auction) return error.NOT_FOUND(res, 'Auction not found')
@@ -132,12 +133,24 @@ const getSingleAuctionWithFUlldetails = async (req, res) => {
         const auction = await AuctionModel.findById(isValidId)
         const users = await UserModel.aggregate([
             {
-                $match: { "auctions.auctionId": isValidId }
+              $match: { "auctions.auctionId": isValidId }
             },
             {
-                $unset: "auctions" // Removes the 'auctions' field from the output
+              $project: {
+                name: 1,
+                email: 1,
+                phone: 1,
+                auction: {
+                  $filter: {
+                    input: "$auctions",
+                    as: "auction",
+                    cond: { $eq: ["$$auction.auctionId", isValidId] }
+                  }
+                }
+              }
             }
-        ])
+          ]);
+          
         const players = await PlayerModel.aggregate([
             {
                 $match: { "auctions.auctionId": isValidId }
@@ -146,7 +159,7 @@ const getSingleAuctionWithFUlldetails = async (req, res) => {
                 $unset: "auctions" // Removes the 'auctions' field from the output
             }
         ])
-        console.log(users)
+        console.log({users})
         const data = {
             auction: auction,
             teams: users, // Assuming user schema has a field 'user'
@@ -161,8 +174,39 @@ const getSingleAuctionWithFUlldetails = async (req, res) => {
 
 }
 
+
+const AssignPurseToAuction = async (req, res) => {
+    const { auctionId, price } = req.body;
+    console.log("Auction ID:", auctionId);
+    try {
+        // First, find the matching users (optional for logging/debugging)
+        const users = await UserModel.find({ auctions: { $elemMatch: { auctionId: auctionId } } });
+        console.log("Matched Users:", users);
+
+        // Then update the price in the matched auction
+        const updateResult = await UserModel.updateMany(
+            { 'auctions.auctionId': auctionId },
+            {
+                $set: {
+                    'auctions.$[elem].totalPurse': price,
+                    'auctions.$[elem].remainingPurse': price
+                }
+            },
+            {
+                arrayFilters: [{ 'elem.auctionId': auctionId }]
+            }
+        );
+
+        // res.status(200).json({ message: 'Price updated successfully', result: updateResult });
+        success.successResponse(res, updateResult, 'Price updated successfully ')
+    } catch (error) {
+        console.error("Error updating price:", error);
+        error.InternalServerError(res, err.message)
+    }
+};
+
 export {
     createAuction, getupcomingAuctions,
     getSingleAuction, updateAuctionDoc, getStartedAuction,
-    endAuction, getAllAuctions, getSingleAuctionWithFUlldetails
+    endAuction, getAllAuctions, getSingleAuctionWithFUlldetails,AssignPurseToAuction
 }
