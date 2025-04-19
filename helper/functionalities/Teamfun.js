@@ -17,6 +17,7 @@ const findUserWithProperDetails = async (id, auctionId) => {
     const matchedAuction = user.auctions.find(a =>
         a.auctionId && a.auctionId.equals(new mongoose.Types.ObjectId(auctionId))
     );
+    console.log(matchedAuction)
 
     const isValidTeam = user.role === "organisation"
     const returnValue = {

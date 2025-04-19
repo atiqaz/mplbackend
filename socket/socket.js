@@ -7,8 +7,9 @@ import OnlineUser from "../schema/socket.schema.js"
 import AuctionDetails from "../schema/auctions.schema.js"
 import { endAuction, getStartedAuction, updateAuctionDoc } from "../controllers/auction.controller.js"
 import UserSchema from "../schema/users.schema.js"
-import { startAandStop } from "../helper/functionalities/auctionFun.js"
+import { soldAndUnSOld, startAandStop } from "../helper/functionalities/auctionFun.js"
 import { findUserWithProperDetails } from "../helper/functionalities/Teamfun.js"
+import { onSingleCurrentPlayer, updateBidHistory } from "../helper/functionalities/PlayersFun.js"
 
 
 function logTimeExpired() {
@@ -122,7 +123,8 @@ export default () => {
 
         socket.on("place:Bid", async (data) => {
             console.log(data)
-            const bids = await addBid(data)
+            // const bids = await addBid(data)
+            const bids = await updateBidHistory(data)
             global.io.to(data.roomId).emit("currentBid", bids)
         })
         socket.on("outOfRace", async (data) => {
@@ -201,6 +203,18 @@ export default () => {
                 socket.emit("JoinAuctionRoom", value)
             }
 
+        })
+        socket.on('getCurrentPlayer', async (data) => {
+            console.log('getCurrentPlayer', data)
+            const currentPlayer = await onSingleCurrentPlayer(data.auctionId, data.roomId)
+            global.io.to(data.roomId).emit('getCurrentPlayer', {
+                player: currentPlayer
+            })
+        })
+        socket.on('sold/unsold', async (data)=>{
+            console.log(data)
+            const res = await soldAndUnSOld(data.currentPlayer)
+            global.io.to(data.roomId).emit('sold/unsold', res)
         })
     })
 
