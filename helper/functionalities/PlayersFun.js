@@ -9,7 +9,8 @@ const getPlayersWithAuctionId = async (auctionId) => {
 }
 
 const onSingleCurrentPlayer = async (auctionId, roomId) => {
-    // Step 1: Find a player with this auctionId
+    
+    // Step 1: Find all players for this auction
     const players = await Players.aggregate([
         {
             $match: {
@@ -31,37 +32,38 @@ const onSingleCurrentPlayer = async (auctionId, roomId) => {
         return null;
     }
 
-    const player = players[0]; // You can implement logic to pick a random or next player too
+    // Step 2: Check each player in order
+    for (const player of players) {
+        // Find existing bid for this player in this auction
+        const existingBid = await BidGround.findOne({
+            playerId: player._id,
+            auctionId: auctionId
+        }).populate("playerId");
 
-    // Step 2: Check if this player exists in biddingground
-    const existingBid = await BidGround.findOne({
-        playerId: player._id,
-        auctionId: auctionId
-    }).populate("playerId");
-
-    if (existingBid) {
-        if (existingBid.status === "open") {
-            console.log("Player already in biddingground and open.");
+        if (!existingBid) {
+            // Player not in bidding ground - create new entry
+            const newBid = new BidGround({
+                playerId: player._id,
+                status: "open",
+                bids: [],
+                auctionId: auctionId,
+                roomId: roomId || null,
+            });
+            await newBid.save();
+            const populated = await newBid.populate("playerId");
+            console.log(`Player ${player.name} inserted into biddingground.`);
+            return populated;
+        } else if (existingBid.status === "open") {
+            // Player found with open status - return it
+            console.log(`Player ${player.name} already in biddingground and open.`);
             return existingBid;
-        } else {
-            console.log("Player found in biddingground but status is not open.");
-            return null;
         }
+        // If we get here, player exists but status isn't open - try next player
     }
 
-    // Step 3: Not found in biddingground → insert
-    const newBid = new BidGround({
-        playerId: player._id,
-        status: "open",
-        bids: [],
-        auctionId: auctionId,
-        roomId: roomId || null, // in case you want to save roomId too
-    });
-
-    await newBid.save();
-    const populated = await newBid.populate("playerId");
-    console.log("Player inserted into biddingground.");
-    return populated;
+    // If we checked all players and none were available
+    console.log("No available players found (all players already auctioned).");
+    return null;
 };
 
 

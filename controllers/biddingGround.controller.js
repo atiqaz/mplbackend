@@ -95,6 +95,7 @@ const soldToFunctionalities = async (data) => {
   if (!biddingGround) {
     return { message: "No active bidding found for this player." };
   }
+  console.log(biddingGround)
 
   const lastBid = biddingGround.bids[biddingGround.bids.length - 1];
   // console.log(lastBid)
@@ -116,14 +117,16 @@ const soldToFunctionalities = async (data) => {
 
   biddingGround.soldTo = lastBid.bidderId; // Set the last bidder as the buyer
   const res = await biddingGround.save()
-
-  return {
+  const returnValue ={
     message: "Player sold successfully.",
     status: "sold",
     bidder: lastBid.bidderName,
     bidAmount: lastBid.bidAmount,
     bidderId: lastBid.bidderId
   };
+  console.log({returnValue})
+
+  return  returnValue;
 }
 
 const unSoldFunctionalities =async(body)=>{

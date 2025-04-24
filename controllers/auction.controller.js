@@ -4,6 +4,7 @@ import success from "../helper/res.success.js"
 import AuctionModel from "../schema/auctions.schema.js"
 import UserModel from '../schema/users.schema.js'
 import PlayerModel from '../schema/player.schema.js'
+import BiddingGround from "../schema/bidding.schema.js"
 
 
 
@@ -133,24 +134,24 @@ const getSingleAuctionWithFUlldetails = async (req, res) => {
         const auction = await AuctionModel.findById(isValidId)
         const users = await UserModel.aggregate([
             {
-              $match: { "auctions.auctionId": isValidId }
+                $match: { "auctions.auctionId": isValidId }
             },
             {
-              $project: {
-                name: 1,
-                email: 1,
-                phone: 1,
-                auction: {
-                  $filter: {
-                    input: "$auctions",
-                    as: "auction",
-                    cond: { $eq: ["$$auction.auctionId", isValidId] }
-                  }
+                $project: {
+                    name: 1,
+                    email: 1,
+                    phone: 1,
+                    auction: {
+                        $filter: {
+                            input: "$auctions",
+                            as: "auction",
+                            cond: { $eq: ["$$auction.auctionId", isValidId] }
+                        }
+                    }
                 }
-              }
             }
-          ]);
-          
+        ]);
+
         const players = await PlayerModel.aggregate([
             {
                 $match: { "auctions.auctionId": isValidId }
@@ -159,7 +160,7 @@ const getSingleAuctionWithFUlldetails = async (req, res) => {
                 $unset: "auctions" // Removes the 'auctions' field from the output
             }
         ])
-        console.log({users})
+        console.log({ users })
         const data = {
             auction: auction,
             teams: users, // Assuming user schema has a field 'user'
@@ -205,8 +206,19 @@ const AssignPurseToAuction = async (req, res) => {
     }
 };
 
+const getSingleAuctionWithFUlldetailsWithBids = async (req, res) => {
+    try {
+        const users = await BiddingGround.find({ auctionId: req.params.id }).populate('playerId').populate('auctionId')
+        console.log({users})
+        success.successResponse(res, users, 'Auction details with user info ')
+    } catch (err) {
+        error.InternalServerError(res, err.message)
+
+    }
+}
+
 export {
     createAuction, getupcomingAuctions,
     getSingleAuction, updateAuctionDoc, getStartedAuction,
-    endAuction, getAllAuctions, getSingleAuctionWithFUlldetails,AssignPurseToAuction
+    endAuction, getAllAuctions, getSingleAuctionWithFUlldetails, AssignPurseToAuction, getSingleAuctionWithFUlldetailsWithBids
 }

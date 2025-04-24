@@ -202,6 +202,10 @@ export default () => {
                 console.log(value)
                 socket.emit("JoinAuctionRoom", value)
             }
+            const room = global.io.sockets.adapter.rooms.get(data.roomId)
+            const numUsers = room ? room.size : 0
+            console.log(room)
+            console.log(numUsers)
 
         })
         socket.on('getCurrentPlayer', async (data) => {
