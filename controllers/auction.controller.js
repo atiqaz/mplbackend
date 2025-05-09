@@ -123,6 +123,8 @@ const endAuction = async (auctionId) => {
 
 const getSingleAuctionWithFUlldetails = async (req, res) => {
     const id = req.params
+    const {onlyTeams}=req.query
+    console.log({onlyTeams})
     console.log(id)
 
     try {
@@ -151,6 +153,9 @@ const getSingleAuctionWithFUlldetails = async (req, res) => {
                 }
             }
         ]);
+        if(onlyTeams==='true'){
+            return success.successResponse(res, users, 'Auction details with user info ')
+        }
 
         const players = await PlayerModel.aggregate([
             {
@@ -160,7 +165,7 @@ const getSingleAuctionWithFUlldetails = async (req, res) => {
                 $unset: "auctions" // Removes the 'auctions' field from the output
             }
         ])
-        console.log({ users })
+     
         const data = {
             auction: auction,
             teams: users, // Assuming user schema has a field 'user'

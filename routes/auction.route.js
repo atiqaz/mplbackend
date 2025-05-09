@@ -15,6 +15,8 @@ router.get('/singleAuction/:id',getSingleAuction)
 router.get('/singleAuction/details/:id',getSingleAuctionWithFUlldetails)
 router.get('/singleAuction/details/bids/:id',getSingleAuctionWithFUlldetailsWithBids)
 router.put('/singleAuction/assignPurse',AssignPurseToAuction)
+
+
 // router.put('/singleAuction/assignPurse')
 
 

@@ -4,6 +4,7 @@ import PlayerRouter from "./routes/player.route.js"
 import userRouter from "./routes/users.routes.js"
 import dashboardRouter from "./routes/dahsboard.route.js"
 import auctionRouter from "./routes/auction.route.js"
+import terms from "./routes/terrms.route.js"
 import { Server } from "socket.io"; // Import Socket.IO
 import http from "http"; // Required to create an HTTP server
 import dotenv from "dotenv"
@@ -39,6 +40,7 @@ app.use("/api/players", PlayerRouter)
 app.use("/api/users", userRouter)
 app.use("/api/dashboard", dashboardRouter)
 app.use("/api/auction", auctionRouter)
+app.use("/api/auction", terms)
 
 app.get("/", (req, res) => {
     // sendMail()
